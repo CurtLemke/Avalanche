@@ -106,12 +106,13 @@ def runModel(cashDistribution, leverageDistribution):
         mat[i, i] = cash
 
     defaults_to_freq = {}
-
+    
     for z in tqdm(range(steps)):
-        model = DeterministicRatioNetwork(100, mat)
+        model = TestNetwork(size, mat)
         model.reset_net()
 
-        ratios, defaults = model.step()
+        step_result = model.step()
+        defaults = step_result['cascade_defaults'] + step_result['ratio_defaults']
         if defaults in defaults_to_freq:
             defaults_to_freq[defaults] += 1
         else:
