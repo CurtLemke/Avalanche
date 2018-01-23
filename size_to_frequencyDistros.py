@@ -15,6 +15,9 @@ numberOfRuns = 100
 # default = 1000000
 steps = 1000000
 
+# select network used, options are "TestNetwork" and "DeterministicRatioNetwork"
+network = 'TestNetwork'
+
 # change distribution:
 # options:
 # beta       - Change distribution variable to 'beta'
@@ -106,13 +109,19 @@ def runModel(cashDistribution, leverageDistribution):
         mat[i, i] = cash
 
     defaults_to_freq = {}
-    
-    for z in tqdm(range(steps)):
-        model = TestNetwork(size, mat)
-        model.reset_net()
 
-        step_result = model.step()
-        defaults = step_result['cascade_defaults'] + step_result['ratio_defaults']
+    for z in tqdm(range(steps)):
+        if network == 'TestNetwork':
+            model = TestNetwork(size, mat)
+            model.reset_net()
+            step_result = model.step()
+            defaults = step_result['cascade_defaults'] + step_result['ratio_defaults']
+
+        elif network == 'DeterministicRatioNetwork':
+            model = DeterministicRatioNetwork(100, mat)
+            model.reset_net()
+            ratios, defaults = model.step()
+            
         if defaults in defaults_to_freq:
             defaults_to_freq[defaults] += 1
         else:
@@ -122,7 +131,7 @@ def runModel(cashDistribution, leverageDistribution):
     in a .json file with the date and time added to
     the name so as to prevent overwriting."""
 
-    with open('result_' + cashString + leverageString + str(time.strftime("%d_%m_%y_%H%M%S")) + '.json', 'w') as fp:
+    with open(network + 'result_' + cashString + leverageString + str(time.strftime("%d_%m_%y_%H%M%S")) + '.json', 'w') as fp:
         json.dump(defaults_to_freq, fp)
 
 # The below function generates the chosen cash distribution
