@@ -15,7 +15,8 @@ numberOfRuns = 100
 # default = 1000000
 steps = 1000000
 
-# select network used, options are "TestNetwork" and "DeterministicRatioNetwork"
+# select network used, options are 'TestNetwork' and 'DeterministicRatioNetwork'
+# 'TestNetwork' is the far better option.
 network = 'TestNetwork'
 
 # change distribution:
@@ -27,70 +28,91 @@ network = 'TestNetwork'
 # lognormal  - Change distribution variable to 'lognormal'
 # normal     - Change distribution variable to 'normal'
 # poisson    - Change distribution variable to 'poisson'
+               # note that poisson returns integer values ranging 0 to about <20
+               # so it does not scale well
 
 
 #### Distribution variables:
 # used for all
-cashDistribution = 'poisson'
-leverageDistribution = 'poisson'
+cashDistribution = 'beta'
+leverageDistribution = 'beta'
 size = 100;  # ## DO NOT CHANGE!
 
+#### Parameters for each distribution. Note that the "heuristic min" is the minimum value
+#### such that the resultant distribution fits the desired characteristics for its location and shape
 # # beta ##
   # cash #
-betaCashAlpha = 3;  # default = 3
-betaCashBeta = 8;  # default = 8
+betaCashAlpha = 2;              # default = 3
+betaCashBeta = 8;               # default = 8
+betaCashScale = 40000;          # heuristic min = 40000, effectively 10000
   # leverage #
-betaLeverageAlpha = 3;  # default = 3
-betaLeverageBeta = 8;  # default = 8
+betaLeverageAlpha = 2;          # default = 3
+betaLeverageBeta = 8;           # default = 8
+betaLeverageScale = 40;         # heuristic min = 40, effectively 10
 
 # # chi square ##
   # cash #
-chiCashDf = 10;  # default = 10
+chiCashDf = 10;                 # heuristic min = 10
+chiCashScale = 1000;            # heuristic min = 1000, effectively 10000
   # leverage #
-chiLeverageDf = 10;  # default = 10
+chiLeverageDf = 10;             # heuristic min = 10
+chiLeverageScale = 1;           # heuristic min = 1, effectively 10
 
 # # f ##
   # cash #
-fCashDfnum = 12;  # default = 12
-fCashDfden = 12;  # default = 12
+fCashDfnum = 12;                # heuristic min = 12
+fCashDfden = 50;                # heuristic min = 50
+fCashScale = 10;                # heuristic min = 10, effectively 10000
   # leverage #
-fLeverageDfnum = 12;  # default = 12
-fLeverageDfden = 12;  # default = 12
+fLeverageDfnum = 14;            # heuristic min = 14
+fLeverageDfden = 50;            # heuristic min = 50
+fLeverageScale = 10;            # heuristic min = 10
 
 # # gamma ##
   # cash #
-gammaCashShape = 2;  # default = 2
-gammaCashScale = 1;  # default = 1
+gammaCashShape = 2;             # heuristic min = 2
+gammaCashScale = 10000;         # heuristic min = 10000
   # leverage #
-gammaLeverageShape = 2;  # default = 2
-gammaLeverageScale = 1;  # default = 1
+gammaLeverageShape = 3;         # heuristic min = 3
+gammaLeverageScale = 4;         # heuristic min = 4
 
 # # lognormal ##
   # cash #
-lognormalCashMean = 0;  # default = 0
-lognormalCashSigma = 1;  # default = 1
+lognormalCashMean = 0;          # heuristic min = 0
+lognormalCashScale = 10000;     # heuristic min = 10000
+lognormalCashSigma = .5;        # heuristic min = .5
   # leverage #
-lognormalLeverageMean = 0;  # default = 0
-lognormalLeverageSigma = 1;  # default = 1
+lognormalLeverageMean = 0;      # heuristic min = 0
+lognormalLeverageScale = 10;    # heuristic min = 10
+lognormalLeverageSigma = .5;    # heuristic min = .5
 
 # # normal ##
   # cash #
-normalCashLocation = 10000;  # default = 10000
-normalCashScale = 10000;  # default = 10000
+normalCashLocation = 10000;     # heuristic min = 10000
+normalCashScale = 10000;        # heuristic min = 10000
   # leverage #
-normalLeverageLocation = 10;  # default = 10
-normalLeverageScale = 2;  # default = 2
+normalLeverageLocation = 10;    # heuristic min = 10
+normalLeverageScale = 2;        # heuristic min = 2
 
 # # poisson ##
   # cash #
-poissonCashLambda = 3;  # default = 3
+poissonCashLambda = 6;          # heuristic min = 6
+poissonCashScale = 10000;       # heuristic min = 10000
   # leverage #
-poissonLeverageLambda = 3;  # default = 3
+poissonLeverageLambda = 6;      # heuristic min = 6
+poissonLeverageScale = 2;       # heuristic min = 2
 
 # the below function is called to run the model
 def runModel(cashDistribution, leverageDistribution):
-    cash_vector = generateCashVector(cashDistribution)
+    # Set scale for distributions:
+    cashScale = setCashScale(cashDistribution)
+    leverageScale = setLeverageScale(leverageDistribution)
+    
+    # Generate cash vector
+    cash_vector = generateCashVector(cashDistribution) * cashScale
+    print(cash_vector)
     cash_vector[cash_vector <= 0] = 1 * 10 ** -10
+    print(cash_vector)
     # cash_vector[cash_vector > 5000] = 6500
     cash_to_connectivity = lambda x: safe_ln(x)
     connectivity_vector = cash_to_connectivity(cash_vector)
@@ -100,8 +122,9 @@ def runModel(cashDistribution, leverageDistribution):
     mat = binarize_probabilities(mat)
 
     # Distribute liabilities
-    leverage_ratios = generateLeverageRatios(leverageDistribution)
+    leverage_ratios = generateLeverageRatios(leverageDistribution) * leverageScale
     leverage_ratios[leverage_ratios < 5] = 5
+    print(leverage_ratios)
 
     liabilities = np.multiply(cash_vector, leverage_ratios)
     mat = distribute_liabilities(mat, liabilities)
@@ -134,6 +157,38 @@ def runModel(cashDistribution, leverageDistribution):
     with open(network + 'result_' + cashString + leverageString + str(time.strftime("%d_%m_%y_%H%M%S")) + '.json', 'w') as fp:
         json.dump(defaults_to_freq, fp)
 
+# The below function sets the scale for the cash vector, returns one if the chosen distribution already has a scale attribute.
+# As the normal and gamma distributions have scale parameters this function will simply return 1 for them.
+def setCashScale(distribution):
+    if distribution == 'beta':
+        return betaCashScale
+    elif distribution == 'chisquare':
+        return chiCashScale
+    elif distribution == 'f':
+        return fCashScale
+    elif distribution == 'lognormal':
+        return lognormalCashScale
+    elif distribution == 'poisson':
+        return poissonCashScale
+    else:
+        return 1
+
+# The below function sets the scale for the leverage vector, returns one if the chosen distribution already has a scale attribute.
+# As the normal and gamma distributions have scale parameters this function will simply return 1 for them.
+def setLeverageScale(distribution):
+    if distribution == 'beta':
+        return betaLeverageScale
+    elif distribution == 'chisquare':
+        return chiLeverageScale
+    elif distribution == 'f':
+        return fLeverageScale
+    elif distribution == 'lognormal':
+        return lognormalLeverageScale
+    elif distribution == 'poisson':
+        return poissonLeverageScale
+    else:
+        return 1
+    
 # The below function generates the chosen cash distribution
 def generateCashVector(distribution):
     if distribution == 'beta':
@@ -157,19 +212,19 @@ def generateCashVector(distribution):
 def generateCashString(distribution):
     cashString = 'aoeu'
     if distribution == 'beta':
-        cashString = 'BetaCash_Alpha' + str(betaCashAlpha) + 'Beta' + str(betaCashBeta) + '_'
+        cashString = 'BetaCash_Alpha' + str(betaCashAlpha) + 'Beta' + str(betaCashBeta) + 'Scale' + str(betaCashScale) + '_'
     elif distribution == 'chisquare':
-        cashString = 'ChisquareCash_Df' + str(chiCashDf) + '_'
+        cashString = 'ChisquareCash_Df' + str(chiCashDf) + 'Scale' + str(chiCashScale) + '_'
     elif distribution == 'f':
-        cashString = 'fCash_Dfnum' + str(fCashDfnum) + 'Dfden' + str(fCashDfden) + '_'
+        cashString = 'fCash_Dfnum' + str(fCashDfnum) + 'Dfden' + str(fCashDfden) + 'Scale' + str(fCashScale) + '_'
     elif distribution == 'gamma':
         cashString = 'GammaCash_Shape' + str(gammaCashShape) + 'Scale' + str(gammaCashScale) + '_'
+    elif distribution == 'lognormal':
+        cashString = 'LognormalCash_Mean' + str(lognormalCashMean) + 'Scale' + str(lognormalCashScale) + 'Sigma' + str(lognormalCashSigma) + '_'
     elif distribution == 'normal':
         cashString = 'NormalCash_location' + str(normalCashLocation) + 'Scale' + str(normalCashScale) + '_'
     elif distribution == 'poisson':
-        cashString = 'PoissonCash_Lambda' + str(poissonCashLambda) + '_'
-    elif distribution == 'lognormal':
-        cashString = 'LognormalCash_Mean' + str(lognormalCashMean) + 'Sigma' + str(lognormalCashSigma) + '_'
+        cashString = 'PoissonCash_Lambda' + str(poissonCashLambda) + 'Scale' + str(poissonCashScale) + '_'
     else: cashString = 'NormalCash_location' + str(normalCashLocation) + 'Scale' + str(normalCashScale) + '_'
     return cashString
 
@@ -196,19 +251,19 @@ def generateLeverageRatios(distribution):
 def generateLeverageString(distribution):
     leverageString = 'aoeu'
     if distribution == 'beta':
-        leverageString = 'BetaLeverage_Alpha' + str(betaLeverageAlpha) + 'Beta' + str(betaLeverageBeta) + '_'
+        leverageString = 'BetaLeverage_Alpha' + str(betaLeverageAlpha) + 'Beta' + str(betaLeverageBeta) + 'Scale' + str(betaLeverageScale) + '_'
     elif distribution == 'chisquare':
-        leverageString = 'ChisquareLeverage_Df' + str(chiLeverageDf) + '_'
+        leverageString = 'ChisquareLeverage_Df' + str(chiLeverageDf) + 'Scale' + str(chiLeverageScale) + '_'
     elif distribution == 'f':
-        leverageString = 'fLeverage_Dfnum' + str(fLeverageDfnum) + 'Dfden' + str(fLeverageDfden) + '_'
+        leverageString = 'fLeverage_Dfnum' + str(fLeverageDfnum) + 'Dfden' + str(fLeverageDfden) + 'Scale' + str(fLeverageScale) + '_' 
     elif distribution == 'gamma':
         leverageString = 'GammaLeverage_Shape' + str(gammaLeverageShape) + 'Scale' + str(gammaLeverageScale) + '_'
     elif distribution == 'lognormal':
-        leverageString = 'LognormalLeverage_Mean' + str(lognormalLeverageMean) + 'Sigma' + str(lognormalLeverageSigma) + '_'
+        leverageString = 'LognormalLeverage_Mean' + str(lognormalLeverageMean) + 'Scale' + str(lognormalLeverageScale) + 'Sigma' + str(lognormalLeverageSigma) + '_'
     elif distribution == 'normal':
         leverageString = 'NormalLeverage_location' + str(normalLeverageLocation) + 'Scale' + str(normalLeverageScale) + '_'
     elif distribution == 'poisson':
-        leverageString = 'PoissonLeverage_Lambda' + str(poissonLeverageLambda) + '_'
+        leverageString = 'PoissonLeverage_Lambda' + str(poissonLeverageLambda) + 'Scale' + str(poissonLeverageScale) + '_'
     else: leverageString = 'NormalLeverage_location' + str(normalLeverageLocation) + 'Scale' + str(normalLeverageScale) + '_'
     return leverageString
 
