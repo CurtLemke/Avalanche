@@ -110,9 +110,9 @@ def runModel(cashDistribution, leverageDistribution):
     
     # Generate cash vector
     cash_vector = generateCashVector(cashDistribution) * cashScale
-    print(cash_vector)
+    # print(cash_vector)
     cash_vector[cash_vector <= 0] = 1 * 10 ** -10
-    print(cash_vector)
+    # print(cash_vector)
     # cash_vector[cash_vector > 5000] = 6500
     cash_to_connectivity = lambda x: safe_ln(x)
     connectivity_vector = cash_to_connectivity(cash_vector)
@@ -124,7 +124,7 @@ def runModel(cashDistribution, leverageDistribution):
     # Distribute liabilities
     leverage_ratios = generateLeverageRatios(leverageDistribution) * leverageScale
     leverage_ratios[leverage_ratios < 5] = 5
-    print(leverage_ratios)
+    # print(leverage_ratios)
 
     liabilities = np.multiply(cash_vector, leverage_ratios)
     mat = distribute_liabilities(mat, liabilities)
